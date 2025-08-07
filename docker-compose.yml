@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-alpine
+    ports:
+      - "5672:5672"
+
+  recommendation-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_HOST: redis
+      PYTHONPATH: /app
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data:ro
+    depends_on:
+      - redis
+    command: uvicorn services.recommendations.main:app --host 0.0.0.0 --port 8000
+
+  event-service:
+    build: .
+    ports:
+      - "8001:8001"
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      PYTHONPATH: /app
+    depends_on:
+      - rabbitmq
+    command: uvicorn services.events.event_service:app --host 0.0.0.0 --port 8001
+
+  event-consumer:
+    build: .
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      REDIS_HOST: redis
+      PYTHONPATH: /app
+    depends_on:
+      - rabbitmq
+      - redis
+    command: python services/events/event_consumer.py
+
+  trending-service:
+    build: .
+    environment:
+      REDIS_HOST: redis
+      PYTHONPATH: /app
+    depends_on:
+      - redis
+    command: python services/pipelines/trending_service.py

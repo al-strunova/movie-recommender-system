@@ -1,0 +1,16 @@
+# Python
+*.pyc
+__pycache__/
+.venv/
+venv/
+
+# Data & Models (too large for git)
+models/
+data/
+
+# IDE
+.idea/
+
+# Environment
+.env
+.DS_Store

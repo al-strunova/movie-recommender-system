@@ -1,0 +1,16 @@
+#Python
+__pycache__/
+.venv/
+venv/
+.git/
+.idea/
+.env
+
+# Large files not needed in container
+models/
+data/
+
+# Development only
+training/
+evaluation/
+*.ipynb

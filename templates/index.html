@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Movie Recommendations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            margin: 0;
+            padding: 20px;
+        }
+        .header {
+            background: #333;
+            padding: 20px;
+            margin: -20px -20px 20px -20px;
+        }
+        .controls {
+            margin-bottom: 30px;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            background: #e50914;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .movies {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .movie {
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .movie-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .movie-info {
+            color: #999;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .rating-section {
+            border-top: 1px solid #555;
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+        .rate-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            margin: 0 5px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .rate-btn:hover {
+            background: #e50914;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Movie Recommendation System</h1>
+        <div class="controls">
+            User ID: <input type="number" id="userId" value="1" min="1" max="100">
+            <button onclick="loadRecommendations()">Get Recommendations</button>
+        </div>
+    </div>
+
+    <div id="content">Loading...</div>
+
+    <script>
+        const API = 'http://localhost:8000';
+        const EVENTS = 'http://localhost:8001';
+
+        // Fake movie database for better display
+        const movies = {
+            1: {title: "Toy Story", year: 1995, genre: "Animation"},
+            2: {title: "Jumanji", year: 1995, genre: "Adventure"},
+            318: {title: "Shawshank Redemption", year: 1994, genre: "Drama"},
+            296: {title: "Pulp Fiction", year: 1994, genre: "Crime"},
+            356: {title: "Forrest Gump", year: 1994, genre: "Drama"},
+            593: {title: "Silence of the Lambs", year: 1991, genre: "Thriller"},
+            260: {title: "Star Wars", year: 1977, genre: "Sci-Fi"},
+            480: {title: "Jurassic Park", year: 1993, genre: "Adventure"},
+            527: {title: "Schindler's List", year: 1993, genre: "Drama"},
+            110: {title: "Braveheart", year: 1995, genre: "Action"}
+        };
+
+        function getMovieInfo(movieId) {
+            // Generate consistent fake data for unknown movies
+            if (movies[movieId]) return movies[movieId];
+
+            const genres = ["Action", "Drama", "Comedy", "Thriller", "Sci-Fi", "Romance"];
+            const titles = [
+                "The Great Adventure", "City of Dreams", "Midnight Express", "The Last Stand",
+                "Ocean's Mystery", "Mountain Peak", "Desert Storm", "Northern Lights",
+                "Shadow Games", "Crystal Palace", "Thunder Road", "Silver Lining"
+            ];
+
+            return {
+                title: titles[movieId % titles.length] + " " + ((movieId % 3) + 1),
+                year: 1990 + (movieId % 30),
+                genre: genres[movieId % genres.length]
+            };
+        }
+
+        async function loadRecommendations() {
+            const userId = document.getElementById('userId').value;
+            const content = document.getElementById('content');
+
+            try {
+                const response = await fetch(`${API}/recommendations/${userId}/sections`);
+                const data = await response.json();
+
+                content.innerHTML = '';
+                for (const [key, section] of Object.entries(data.sections)) {
+                    content.innerHTML += `
+                        <div class="section">
+                            <h2>${section.title}</h2>
+                            <div class="movies">
+                                ${section.movies.map(m => {
+                                    const info = getMovieInfo(m.movie_id);
+                                    return `
+                                        <div class="movie movie-${m.movie_id}" data-movie-id="${m.movie_id}">
+                                            <div class="movie-title">${info.title}</div>
+                                            <div class="movie-info">${info.year} • ${info.genre}</div>
+                                            <div class="rating-section">
+                                                <div>Rate this movie:</div>
+                                                <div style="margin-top: 10px;">
+                                                    ${[1,2,3,4,5].map(rating =>
+                                                        `<button class="rate-btn" onclick="rateMovie(${m.movie_id}, ${rating})">${rating}★</button>`
+                                                    ).join('')}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                content.innerHTML = `<div>Error: ${error.message}</div>`;
+            }
+        }
+
+        async function rateMovie(movieId, rating) {
+            const userId = document.getElementById('userId').value;
+            // Find ALL instances of this movie across all sections
+            const movieCards = document.querySelectorAll(`.movie-${movieId}`);
+
+            // Update rating display in all instances
+            movieCards.forEach(movieCard => {
+                const ratingSection = movieCard.querySelector('.rating-section');
+
+                // Show the rating with stars
+                let stars = '';
+                for (let i = 1; i <= 5; i++) {
+                    stars += i <= rating ? '★' : '☆';
+                }
+
+                ratingSection.innerHTML = `
+                    <div style="color: #4CAF50; font-size: 16px; padding: 10px 0;">
+                        <div>Your Rating:</div>
+                        <div style="font-size: 24px; margin-top: 5px;">${stars}</div>
+                    </div>
+                `;
+            });
+
+            try {
+                await fetch(`${EVENTS}/interact`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_id: parseInt(userId),
+                        movie_id: movieId,
+                        rating: rating
+                    })
+                });
+            } catch (error) {
+                movieCards.forEach(movieCard => {
+                    const ratingSection = movieCard.querySelector('.rating-section');
+                    ratingSection.innerHTML = `<div style="color: #ff4444;">Error submitting rating</div>`;
+                });
+            }
+        }
+
+        loadRecommendations();
+    </script>
+</body>
+</html>
