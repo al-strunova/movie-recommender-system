@@ -14,7 +14,7 @@ learning capabilities.
 
 ## Architecture
 
-**Microservices:**
+**System Microservices:**
 
 - **Recommendation API** (port 8000): Serves personalized recommendations with Redis caching
 - **Event Service** (port 8001): Collects user ratings and publishes to RabbitMQ
@@ -35,32 +35,20 @@ learning capabilities.
 
 ### Prerequisites
 
-**Pre-trained Models:**
-To run the application, download pre-trained models (~40MB):
-- Download from: [link to download](https://drive.google.com/file/d/1b7svWPa_evzUUMybh9GH0cYKKGxVxopk/view?usp=drive_link)
-- Extract to project root (creates `models/` and `data/` directories)
-
-**Training from Scratch:**
-If you want to train your own models:
-1. Download MovieLens 100k dataset → save to `data/movielens/`
-2. Download IMDb datasets → save to `data/imdb/`
-3. Run training scripts:
-   ```bash
-   python training/train_all_models.py
-   python training/train_gnn.py
-   python training/train_lgb_ranker.py
-   ```
+To run the application, you'll need the pre-trained models and data features.
+- Download the models/ and data/ directories from : [Google Drive link](https://drive.google.com/file/d/1b7svWPa_evzUUMybh9GH0cYKKGxVxopk/view?usp=drive_link)
+- Extract the contents to the root of the project.
 
 ### Using Docker Compose (Recommended)
 
+This is the fastest way to get the entire system running.
+
 ```bash
-# Clone repository
+# Clone the repository
 git clone https://github.com/yourusername/movie-recsys.git
 cd movie-recsys
 
-# Download trained models and data/features
-# Place models in ./models directory and data features in ./data
-# Models and data available at: [your-model-link]
+# Download and extract the pre-trained models into the project root as instructed in the Prerequisites section.
 
 # Build and start all services
 docker-compose up --build -d
@@ -68,11 +56,7 @@ docker-compose up --build -d
 # Verify all 6 services are running
 docker-compose ps
 
-# Check health endpoints
-curl http://localhost:8000/health
-curl http://localhost:8001/health
-
-# Populate test data (first time only)
+# Populate test data (optional, for trending section)
 python scripts/populate_data.py
 
 # Access UI
@@ -83,6 +67,8 @@ docker-compose down
 ```
 
 ### Manual Execution (Development)
+
+This is useful for local development and debugging individual services.
 
 ```bash
 # Start infrastructure
@@ -104,7 +90,7 @@ open http://localhost:8000
 
 ## Performance Results
 
-| Model Configuration                        | Precision@10 | nDCG@10 | Coverage | Use Case     |
+|        Model Configuration                 | Precision@10 | nDCG@10 | Coverage |    Use Case  |
 |--------------------------------------------|--------------|---------|----------|--------------|
 | **Two-Stage LightGBM + Collaborative**     | 27.1%        | 56.1%   | 7.3%     | Personalized |
 | **Two-Stage CrossEncoder + Collaborative** | 22.0%        | 50.7%   | 9.2%     | Personalized |
@@ -114,6 +100,30 @@ open http://localhost:8000
 
 *Evaluated on MovieLens 100k dataset with temporal split*
 
+## Two-Stage Architecture Deep Dive
+
+**Stage 1 - Candidate Generation:**
+
+This stage generates a list of potential movies for a user from different sources.
+
+- **Collaborative Filtering (ALS)**- Used for users with existing watch history.
+- **Graph Neural Network (3-layer GCN)** - Identifies "hidden gems" or related items through an item-item graph.
+- **Genre-Based with Weighted Ratings** - A smart approach for new users with no history.
+- **Content-based (TF-IDF + SVD)** - An alternative method (tested only).
+- **Semantic (Sentence-BERT)** - An alternative method (tested only).
+
+**Stage 2 - Reranking:**
+
+This stage takes the candidate list and re-orders it for optimal results.
+
+- **LightGBM**: A gradient-boosting model with over 25 engineered features. This is the production choice.
+- **CrossEncoder transformer**: A transformer model used as an alternative reranker.
+
+**Special Handling:**
+
+- **New users**: Genre preferences + IMDB weighted rating formula
+- Weighted rating: (v/(v+m))×R + (m/(v+m))×C where m=vote threshold, C=mean rating
+
 ## Technical Stack
 
 - **Machine Learning**: PyTorch, PyTorch Geometric, LightGBM, Sentence-Transformers
@@ -121,31 +131,11 @@ open http://localhost:8000
 - **Data Processing**: Pandas, NumPy, Faiss, scikit-learn
 - **Models**: ALS (implicit), GCN, CrossEncoder, TF-IDF/SVD
 
-## Two-Stage Architecture
-
-**Stage 1 - Candidate Generation:**
-
-- Collaborative Filtering (ALS)- for users with history
-- Graph Neural Network (3-layer GCN) - for discovery
-- Genre-Based with Weighted Ratings - for new users
-- Content-based (TF-IDF + SVD) - tested only
-- Semantic (Sentence-BERT) - tested only
-
-**Stage 2 - Reranking:**
-
-- LightGBM with 25+ engineered features (production)
-- CrossEncoder transformer (alternative)
-
-**Special Handling:**
-
-- New users: Genre preferences + IMDB weighted rating formula
-- Weighted rating: (v/(v+m))×R + (m/(v+m))×C where m=vote threshold, C=mean rating
-
-# Project Structure
+## Project Structure
 
 ```
 MovieRecSys/
-├── models/
+├── models/                                 # Pre-trained models
 │   ├── candidate_models/
 │   │   ├── als_model.npz
 │   │   ├── als_maps.pkl
@@ -156,15 +146,15 @@ MovieRecSys/
 │   │   └── semanticrecommender.faiss
 │   └── ranking_models/
 │       └── lightgbm_ranker.pkl
-├── data/
+├── data/                                    # Datasets and feature files
 │   ├── movielens/
 │   │   └── tags.csv (required at runtime)
 │   ├── imdb/ (training only)
 │   └── features/
 │       ├── user_features.pkl
 │       └── movie_features.pkl
-├── src/
-│   ├── recommenders/          # Model implementations
+├── src/                                     # Core source code
+│   ├── recommenders/                        # Model implementations
 │   │   ├── two_stage_recommender.py
 │   │   ├── collaborative_model.py
 │   │   ├── gnn_recommender.py
@@ -173,15 +163,15 @@ MovieRecSys/
 │   │   ├── lightgbm_ranker.py
 │   │   ├── cross_encoder_ranker.py
 │   │   └── faiss_recommender_abc.py
-│   ├── features/              # Feature engineering
-│   └── data/                  # Data loading utilities
-├── services/
-│   ├── recommendations/       # FastAPI service
-│   ├── events/               # Event processing
-│   └── pipelines/            # Retraining & trending
-├── evaluation/               # Model evaluation scripts
-├── training/                 # Training scripts
-└── docker-compose.yml
+│   ├── features/                            # Feature engineering
+│   └── data/                                # Data loading utilities
+├── services/                                # Microservice implementations
+│   ├── recommendations/                       # FastAPI service
+│   ├── events/                                # Event processing
+│   └── pipelines/                             # Retraining & trending
+├── evaluation/                              # Model evaluation scripts
+├── training/                                # Training scripts
+└── docker-compose.yml                       # Defines the microservices architecture
 ```
 
 ## API Endpoints
